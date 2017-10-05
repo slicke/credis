@@ -150,4 +150,16 @@ class CredisTestCommon extends \PHPUnit\Framework\TestCase
             @copy('redis-sentinel.conf.bak','redis-sentinel.conf');
         }
     }
+    
+    /**
+     * Polyfill for older PHPUnit
+     */
+    public function expectException($class, $method)
+    {
+        if (method_exists($this, 'setExpectedException')) {
+            $this->setExpectedException($class, $method);
+        } else {
+            parent::expectException($class, $method);
+        }
+    }
 }
