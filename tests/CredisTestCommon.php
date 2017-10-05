@@ -166,12 +166,12 @@ class CredisTestCommon extends \PHPUnit\Framework\TestCase
     /**
      * Polyfill for older PHPUnit
      */
-    public function expectException($class, $method)
+    public function expectException($class, $message = NULL)
     {
         if (method_exists($this, 'setExpectedException')) {
-            $this->setExpectedException($class, $method);
+            $this->setExpectedException($class, $message);
         } else {
-            parent::expectException($class, $method);
+            parent::expectException($class, $message);
         }
     }
 }
