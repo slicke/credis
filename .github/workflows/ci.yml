@@ -46,5 +46,8 @@ jobs:
           composer install --dev -n
         fi
 
+    - name: Report phpredis version
+      run: php -r 'echo phpversion("redis")."\n";'
+
     - name: Unit tests
       run: ./vendor/bin/phpunit
