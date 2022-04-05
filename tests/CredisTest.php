@@ -743,6 +743,13 @@ class CredisTest extends CredisTestCommon
 
   public function testTLSConnection()
   {
+    // php/redis both need to be compiled with similar TLS configurations
+    // Modern TLS against newer redis versions only reliably works for php 7.2+ due to TLSv1.2+ support
+    if (version_compare(phpversion(),'7.2.0','<')) {
+      $this->assertTrue(true);
+      return;
+    }
+
     $this->credis = new Credis_Client('tls://'.$this->redisConfig[8]['host'] . ':' . $this->redisConfig[8]['port']);
     $this->credis->setTlsOptions((array)$this->redisConfig[8]['ssl']);
     $this->credis->connect();
