@@ -309,6 +309,12 @@ class Credis_Client {
      */
     protected $subscribed = false;
 
+    /** @var bool  */
+    protected $oldPhpRedis = false;
+
+    /** @var array */
+    protected $tlsOptions = [];
+
 
     /**
      * Creates a Redisent connection to the Redis server on host {@link $host} and port {@link $port}.
@@ -321,8 +327,9 @@ class Credis_Client {
      * @param int $db The selected datbase of the Redis server
      * @param string $password The authentication password of the Redis server
      * @param string $username The authentication username of the Redis server
+     * @param array|null $tlsOptions The TLS/SSL context options. See https://www.php.net/manual/en/context.ssl.php for details
      */
-    public function __construct($host = '127.0.0.1', $port = 6379, $timeout = null, $persistent = '', $db = 0, $password = null, $username = null)
+    public function __construct($host = '127.0.0.1', $port = 6379, $timeout = null, $persistent = '', $db = 0, $password = null, $username = null, array $tlsOptions = null)
     {
         $this->host = (string) $host;
         $this->port = (int) $port;
@@ -334,12 +341,16 @@ class Credis_Client {
         $this->authUsername = $username;
         $this->selectedDb = (int)$db;
         $this->convertHost();
+        if ($tlsOptions) {
+          $this->setTlsOptions($tlsOptions);
+        }
         // PHP Redis extension support TLS/ACL AUTH since 5.3.0
+        $this->oldPhpRedis = (bool)version_compare(phpversion('redis'),'5.3.0','<');
         if ((
               $this->scheme === 'tls'
               || $this->authUsername !== null
             )
-            && !$this->standalone && version_compare(phpversion('redis'),'5.3.0','<')){
+            && !$this->standalone && $this->oldPhpRedis){
             $this->standalone = true;
         }
     }
@@ -426,6 +437,15 @@ class Credis_Client {
         $this->closeOnDestruct = $flag;
         return $this;
     }
+
+    public function setTlsOptions(array $tlsOptions)
+    {
+      if($this->connected) {
+        throw new CredisException('Cannot change TLS options after a connection has already been established.');
+      }
+      $this->tlsOptions = $tlsOptions;
+    }
+
     protected function convertHost()
     {
         if (preg_match('#^(tcp|tls|unix)://(.*)$#', $this->host, $matches)) {
@@ -464,7 +484,7 @@ class Credis_Client {
             return $this;
         }
         $this->close(true);
-
+        $tlsOptions = $this->scheme === 'tls' ? $this->tlsOptions : [];
         if ($this->standalone) {
             $flags = STREAM_CLIENT_CONNECT;
             $remote_socket = $this->port === NULL
@@ -475,18 +495,36 @@ class Credis_Client {
                 $remote_socket .= '/'.$this->persistent;
                 $flags = $flags | STREAM_CLIENT_PERSISTENT;
             }
-            $result = $this->redis = @stream_socket_client($remote_socket, $errno, $errstr, $this->timeout !== null ? $this->timeout : 2.5, $flags);
+            // passing $context as null errors before php 8.0
+            $context = stream_context_create(['ssl' => $tlsOptions]);
+            $result = $this->redis = @stream_socket_client($remote_socket, $errno, $errstr, $this->timeout !== null ? $this->timeout : 2.5, $flags, $context);
         }
         else {
             if ( ! $this->redis) {
                 $this->redis = new Redis;
             }
-            $socketTimeout = $this->timeout ? $this->timeout : 0.0;
+            $socketTimeout = $this->timeout ?: 0.0;
             try
             {
+              if ($this->oldPhpRedis)
+              {
                 $result = $this->persistent
-                    ? $this->redis->pconnect($this->host, (int)$this->port, $socketTimeout, $this->persistent)
-                    : $this->redis->connect($this->host, (int)$this->port, $socketTimeout);
+                  ? $this->redis->pconnect($this->host, (int)$this->port, $socketTimeout, $this->persistent)
+                  : $this->redis->connect($this->host, (int)$this->port, $socketTimeout);
+              }
+              else
+              {
+                // 7th argument is non-documented TLS options. But it only exists on the newer versions of phpredis
+                if ($tlsOptions) {
+                  $context = ['stream' => $tlsOptions];
+                } else {
+                  $context = [];
+                }
+                /** @noinspection PhpMethodParametersCountMismatchInspection */
+                $result = $this->persistent
+                  ? $this->redis->pconnect($this->scheme.'://'.$this->host, (int)$this->port, $socketTimeout, $this->persistent, 0, 0.0, $context)
+                  : $this->redis->connect($this->scheme.'://'.$this->host, (int)$this->port, $socketTimeout, null, 0, 0.0, $context);
+              }
             }
             catch(Exception $e)
             {
@@ -1168,7 +1206,7 @@ class Credis_Client {
                     break;
                 case 'auth':
                     // For phpredis pre-v5.3, the type signature is string, not array|string
-                    $args = (is_array($args) && count($args) === 1) ? $args : array($args);
+                    $args = $this->oldPhpRedis ? $args : array($args);
                     break;
                 default:
                     // Flatten arguments
