@@ -741,6 +741,14 @@ class CredisTest extends CredisTestCommon
       $this->assertEquals($this->credis->getPersistence(),'abc123');
   }
 
+  public function testTLSConnection()
+  {
+    $this->credis = new Credis_Client('tls://'.$this->redisConfig[8]['host'] . ':' . $this->redisConfig[8]['port']);
+    $this->credis->setTlsOptions((array)$this->redisConfig[8]['ssl']);
+    $this->credis->connect();
+    $this->assertTrue(true);
+  }
+
   /**
    * @group UnixSocket
    */

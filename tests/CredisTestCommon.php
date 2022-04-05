@@ -113,6 +113,11 @@ class CredisTestCommon extends CredisTestCommonShim
             echo "\tredis-server redis-auth.conf".PHP_EOL;
             echo "\tredis-server redis-socket.conf".PHP_EOL.PHP_EOL;
         } else {
+            chdir(__DIR__.'/../');
+            if (!file_exists('./tests/tls/ca.crt') || !file_exists('./tests/tls/server.crt')) {
+              // generate SSL keys
+              system('./tests/gen-test-certs.sh');
+            }
             chdir(__DIR__);
             $directoryIterator = new DirectoryIterator(__DIR__);
             foreach($directoryIterator as $item){
