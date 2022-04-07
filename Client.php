@@ -452,7 +452,7 @@ class Credis_Client {
     {
         if (preg_match('#^(tcp|tls|tlsv\d(?:\.\d)?|unix)://(.+)$#', $this->host, $matches)) {
             $this->isTls = strpos($matches[1], 'tls') === 0;
-            if($this->isTls) {
+            if($this->isTls || $matches[1] === 'tcp') {
                 $this->scheme = $matches[1];
                 if ( ! preg_match('#^([^:]+)(:([0-9]+))?(/(.+))?$#', $matches[2], $matches)) {
                     throw new CredisException('Invalid host format; expected '.$this->scheme.'://host[:port][/persistence_identifier]');
