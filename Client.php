@@ -758,7 +758,7 @@ class Credis_Client {
      */
     public function sscan(&$Iterator, $field, $pattern = null, $count = null)
     {
-        return $this->__call('sscan', array($field, &$Iterator, $pattern, $count));
+        return $this->__call('sscan', array($field, $Iterator, $pattern, $count));
     }
 
     /**
